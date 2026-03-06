@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Greek → English Live Translator</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f14;
+      --surface: #161920;
+      --surface2: #1e2130;
+      --border: #2a2f45;
+      --accent: #4f8ef7;
+      --accent-glow: rgba(79, 142, 247, 0.25);
+      --green: #3ecf8e;
+      --red: #f76e6e;
+      --text-primary: #e8eaf0;
+      --text-secondary: #7a8099;
+      --text-muted: #4a5068;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .logo svg { color: var(--accent); }
+
+    .lang-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 14px;
+    }
+
+    .lang-arrow { color: var(--accent); font-weight: bold; }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.3s;
+      flex-shrink: 0;
+    }
+    .status-dot.listening {
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.25);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+    .status-dot.error { background: var(--red); }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(62, 207, 142, 0.25); }
+      50% { box-shadow: 0 0 0 6px rgba(62, 207, 142, 0.1); }
+    }
+
+    /* ── Main layout ── */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 24px 28px;
+      gap: 20px;
+      overflow: hidden;
+    }
+
+    /* ── Translation box (primary, large) ── */
+    .translation-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .panel-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: var(--surface2);
+    }
+
+    .panel-label .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+    }
+
+    .translation-text {
+      flex: 1;
+      padding: 28px 32px;
+      font-size: clamp(1.4rem, 3vw, 2.2rem);
+      font-weight: 400;
+      line-height: 1.55;
+      color: var(--text-primary);
+      overflow-y: auto;
+      word-break: break-word;
+    }
+
+    .translation-text .placeholder {
+      color: var(--text-muted);
+      font-style: italic;
+      font-size: clamp(1rem, 2vw, 1.4rem);
+    }
+
+    .translation-text .interim {
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+
+    /* ── Greek input panel (smaller) ── */
+    .source-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .source-text {
+      padding: 16px 20px;
+      font-size: 1rem;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      min-height: 64px;
+      max-height: 120px;
+      overflow-y: auto;
+      word-break: break-word;
+    }
+
+    .source-text .interim-src {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: #6a9ff8; transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+
+    .btn-stop {
+      background: var(--red);
+      color: #fff;
+    }
+    .btn-stop:hover { background: #f88484; transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover {
+      color: var(--text-primary);
+      border-color: var(--text-muted);
+      transform: translateY(-1px);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .status-text {
+      margin-left: auto;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+      transition: transform 0.3s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+    Live Translator
+  </div>
+
+  <div class="lang-badge">
+    <span id="statusDot" class="status-dot"></span>
+    <span>Greek (el)</span>
+    <span class="lang-arrow">→</span>
+    <span>English (en)</span>
+  </div>
+</header>
+
+<main>
+  <!-- Translation output (large) -->
+  <div class="translation-panel">
+    <div class="panel-label">
+      <div class="dot"></div>
+      English Translation
+    </div>
+    <div class="translation-text" id="translationText">
+      <span class="placeholder">Translation will appear here once you start listening...</span>
+    </div>
+  </div>
+
+  <!-- Greek source (compact) -->
+  <div class="source-panel">
+    <div class="panel-label">
+      <div class="dot" style="background: var(--text-muted)"></div>
+      Greek (Original)
+    </div>
+    <div class="source-text" id="sourceText">
+      <span style="color: var(--text-muted); font-style: italic;">Spoken Greek will appear here...</span>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <button class="btn btn-primary" id="startBtn" onclick="startListening()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+      </svg>
+      Start Listening
+    </button>
+
+    <button class="btn btn-stop" id="stopBtn" onclick="stopListening()" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="4" y="4" width="16" height="16" rx="2"/>
+      </svg>
+      Stop
+    </button>
+
+    <button class="btn btn-secondary" onclick="clearAll()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/>
+        <path d="M10 11v6"/><path d="M14 11v6"/>
+      </svg>
+      Clear
+    </button>
+
+    <span class="status-text" id="statusText">Ready — use Chrome for best results</span>
+
+    <div id="micLevel" style="display:none; align-items:center; gap:8px; margin-left:auto;">
+      <span style="font-size:0.78rem; color:var(--text-muted);">Mic</span>
+      <div style="width:100px; height:6px; background:var(--surface2); border-radius:3px; overflow:hidden;">
+        <div id="micBar" style="height:100%; width:0%; background:var(--green); border-radius:3px; transition:width 0.1s;"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+  // ── State ──────────────────────────────────────────────────
+  let recognition = null;
+  let isListening = false;
+  let committedGreek = '';
+  let committedEnglish = '';
+  let currentInterim = '';          // latest interim Greek text
+  let lastTranslatedInterim = '';   // last interim we actually sent to translate
+  let translateInterval = null;
+
+  // ── Elements ──────────────────────────────────────────────
+  const statusDot     = document.getElementById('statusDot');
+  const statusText    = document.getElementById('statusText');
+  const startBtn      = document.getElementById('startBtn');
+  const stopBtn       = document.getElementById('stopBtn');
+  const translationEl = document.getElementById('translationText');
+  const sourceEl      = document.getElementById('sourceText');
+  const micLevel      = document.getElementById('micLevel');
+  const micBar        = document.getElementById('micBar');
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    startBtn.disabled = true;
+    setStatus('error', 'Web Speech API not supported — please use Chrome');
+  }
+
+  // ── Speech recognition ─────────────────────────────────────
+  function initRecognition() {
+    recognition = new SpeechRecognition();
+    recognition.lang = 'el-GR';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      isListening = true;
+      setStatus('listening', 'Listening...');
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      micLevel.style.display = 'flex';
+    };
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      let newFinal = '';
+
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) newFinal += t;
+        else interim += t;
+      }
+
+      if (newFinal) {
+        committedGreek += newFinal + ' ';
+        currentInterim = '';
+        lastTranslatedInterim = '';
+        translateFinal(newFinal.trim());
+      }
+
+      if (interim) {
+        currentInterim = interim.trim();
+      }
+
+      renderSource(committedGreek, interim);
+
+      if (interim || newFinal) {
+        micBar.style.width = '70%';
+        setTimeout(() => micBar.style.width = '30%', 150);
+      }
+    };
+
+    recognition.onerror = (e) => {
+      if (e.error === 'not-allowed') {
+        setStatus('error', 'Microphone access denied');
+        showToast('Allow microphone access and try again');
+        stopListening();
+      } else if (e.error !== 'aborted' && e.error !== 'no-speech') {
+        setStatus('error', `Error: ${e.error}`);
+      }
+    };
+
+    recognition.onend = () => {
+      // Auto-restart to keep continuous listening
+      if (isListening) {
+        try { recognition.start(); } catch (_) {}
+      } else {
+        micLevel.style.display = 'none';
+        micBar.style.width = '0%';
+        setStatus('idle', 'Stopped');
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+    };
+  }
+
+  // ── Translation ────────────────────────────────────────────
+  async function callTranslate(text) {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=el&tl=en&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    return data[0]?.map(c => c[0]).join('') || '';
+  }
+
+  async function translateFinal(text) {
+    if (!text) return;
+    try {
+      const translated = await callTranslate(text);
+      if (!translated) return;
+      // Ensure sentence ends with punctuation
+      const sentence = /[.!?,;…]$/.test(translated.trim()) ? translated.trim() : translated.trim() + '.';
+      committedEnglish += sentence + ' ';
+      renderTranslation(committedEnglish, '');
+    } catch (err) {
+      showToast('Translation failed — check connection');
+      console.error(err);
+    }
+  }
+
+  // Every 300ms: if interim text has changed, fire a translation
+  function startTranslateInterval() {
+    translateInterval = setInterval(async () => {
+      if (!currentInterim || currentInterim === lastTranslatedInterim) return;
+      const text = currentInterim;
+      lastTranslatedInterim = text;
+      try {
+        const translated = await callTranslate(text);
+        // Only render if this interim is still active (not yet finalized)
+        if (translated && currentInterim) renderTranslation(committedEnglish, translated);
+      } catch (_) {}
+    }, 300);
+  }
+
+  // ── Controls ───────────────────────────────────────────────
+  function startListening() {
+    if (!SpeechRecognition) return;
+    initRecognition();
+    startTranslateInterval();
+    try { recognition.start(); } catch (_) {}
+  }
+
+  function stopListening() {
+    isListening = false;
+    clearInterval(translateInterval);
+    currentInterim = '';
+    if (recognition) { try { recognition.stop(); } catch (_) {} }
+  }
+
+  function clearAll() {
+    committedGreek = '';
+    committedEnglish = '';
+    sourceEl.innerHTML = `<span style="color:var(--text-muted);font-style:italic;">Spoken Greek will appear here...</span>`;
+    translationEl.innerHTML = '<span class="placeholder">Translation will appear here once you start listening...</span>';
+  }
+
+  // ── Render ─────────────────────────────────────────────────
+  function renderSource(committed, interim) {
+    sourceEl.innerHTML =
+      (committed ? escHtml(committed) : '') +
+      (interim ? `<span class="interim-src">${escHtml(interim)}</span>` : '') ||
+      `<span style="color:var(--text-muted);font-style:italic;">Spoken Greek will appear here...</span>`;
+    sourceEl.scrollTop = sourceEl.scrollHeight;
+  }
+
+  function renderTranslation(committed, interim) {
+    if (!committed && !interim) {
+      translationEl.innerHTML = '<span class="placeholder">Translation will appear here once you start listening...</span>';
+      return;
+    }
+    translationEl.innerHTML =
+      (committed ? escHtml(committed) : '') +
+      (interim ? `<span class="interim"> ${escHtml(interim)}</span>` : '');
+    translationEl.scrollTop = translationEl.scrollHeight;
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── UI helpers ─────────────────────────────────────────────
+  function setStatus(state, msg) {
+    statusDot.className = 'status-dot' + (state === 'listening' ? ' listening' : state === 'error' ? ' error' : '');
+    statusText.textContent = msg;
+  }
+
+  let toastTimer;
+  function showToast(message) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
+  }
+
+  window.startListening = startListening;
+  window.stopListening  = stopListening;
+  window.clearAll       = clearAll;
+</script>
+</body>
+</html>
