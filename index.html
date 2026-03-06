@@ -512,30 +512,61 @@
     return dp[m][n];
   }
 
-  function applyVocabulary(text) {
-    const raw = document.getElementById('vocabInput').value;
-    if (!raw.trim()) return text;
+  // Built-in English tech/business vocabulary — always active
+  const BUILT_IN_VOCAB = [
+    // Cloud & Infrastructure
+    'cloud','server','network','database','API','backend','frontend','DevOps',
+    'Docker','Kubernetes','Linux','Windows','GitHub','Git','CI/CD','pipeline',
+    'microservices','serverless','firewall','VPN','DNS','SSL','CDN','SaaS','PaaS','IaaS',
+    // AI & Data
+    'AI','ML','data','analytics','algorithm','ChatGPT','OpenAI','LLM','model',
+    'dataset','Python','JavaScript','React','Node','SQL','NoSQL','blockchain','crypto',
+    // Business & Startups
+    'startup','unicorn','pitch','funding','VC','MVP','agile','scrum','sprint',
+    'KPI','ROI','B2B','B2C','CEO','CTO','CFO','CMO','brand','market','marketing',
+    'fintech','edtech','healthtech','proptech','insurtech',
+    // Big Tech
+    'Google','Microsoft','Apple','Amazon','Meta','Facebook','Twitter','LinkedIn',
+    'Netflix','Uber','Airbnb','Spotify','Tesla','Samsung','Oracle','IBM','SAP',
+    'Salesforce','Zoom','Slack','Teams','GitHub','Stripe','PayPal','Shopify',
+    // Devices & Platforms
+    'iPhone','Android','iOS','iPad','MacBook','Windows','Chrome','Safari','Firefox',
+    'WiFi','Bluetooth','USB','SSD','GPU','CPU',
+    // General Tech
+    'software','hardware','digital','online','internet','website','app','mobile',
+    'platform','dashboard','email','cloud','streaming','podcast','webinar','blog',
+    'Excel','PowerPoint','Word','PDF','CRM','ERP',
+    // General Business English
+    'team','manager','partner','investor','portfolio','strategy','vision','mission',
+    'workshop','hackathon','keynote','roadmap','framework','ecosystem',
+  ];
 
-    const terms = raw.split(',').map(t => t.trim()).filter(Boolean);
-    if (terms.length === 0) return text;
+  function applyVocabulary(text) {
+    const userRaw = document.getElementById('vocabInput').value;
+    const userTerms = userRaw.trim()
+      ? userRaw.split(',').map(t => t.trim()).filter(Boolean)
+      : [];
+
+    // User terms take priority; built-in fills the rest
+    const terms = [...userTerms, ...BUILT_IN_VOCAB];
 
     // Split text into word tokens (preserve spaces and punctuation)
     const tokens = text.split(/(\s+|[.,!?;:])/);
 
     return tokens.map(token => {
-      // Only try to match non-trivial word tokens
       if (!token.trim() || token.length < 3 || /^[\s.,!?;:]+$/.test(token)) return token;
 
-      const latinToken = greekToLatin(token);
+      // If token is already Latin script, leave it alone
+      if (!/[\u0370-\u03FF]/.test(token)) return token;
+
+      const normToken = greekToLatin(token).replace(/[^a-z0-9]/g, '');
+      if (normToken.length < 2) return token;
+
       let bestTerm = null, bestScore = 0;
 
       for (const term of terms) {
         const latinTerm = term.toLowerCase().replace(/[^a-z0-9]/g, '');
         if (latinTerm.length < 2) continue;
-
-        // Normalize both for comparison
-        const normToken = latinToken.replace(/[^a-z0-9]/g, '');
-        if (normToken.length < 2) continue;
 
         const maxLen = Math.max(normToken.length, latinTerm.length);
         const dist = levenshtein(normToken, latinTerm);
@@ -544,7 +575,6 @@
         if (score > bestScore) { bestScore = score; bestTerm = term; }
       }
 
-      // Threshold: 0.78 similarity = confident match
       return (bestScore >= 0.78 && bestTerm) ? bestTerm : token;
     }).join('');
   }
