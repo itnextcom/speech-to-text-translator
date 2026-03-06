@@ -233,6 +233,47 @@
       color: var(--text-muted);
     }
 
+    /* ── Vocabulary bar ── */
+    .vocab-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      padding: 10px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .vocab-bar label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .vocab-bar input {
+      flex: 1;
+      min-width: 200px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      padding: 6px 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .vocab-bar input:focus { border-color: var(--accent); }
+    .vocab-bar input::placeholder { color: var(--text-muted); }
+
+    .vocab-hint {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
     /* ── Toast ── */
     #toast {
       position: fixed;
@@ -337,6 +378,13 @@
     </div>
   </div>
 
+  <!-- Vocabulary panel -->
+  <div class="vocab-bar">
+    <label>English terms:</label>
+    <input type="text" id="vocabInput" placeholder="Microsoft, Cloud, AWS, AI, Google..." />
+    <span class="vocab-hint">Enter English words/names the speaker will say — separated by commas</span>
+  </div>
+
 </main>
 
 <div id="toast"></div>
@@ -394,17 +442,18 @@
       }
 
       if (newFinal) {
-        committedGreek += newFinal + ' ';
+        const corrected = applyVocabulary(newFinal.trim());
+        committedGreek += corrected + ' ';
         currentInterim = '';
         lastTranslatedInterim = '';
-        translateFinal(newFinal.trim());
+        translateFinal(corrected);
       }
 
       if (interim) {
-        currentInterim = interim.trim();
+        currentInterim = applyVocabulary(interim.trim());
       }
 
-      renderSource(committedGreek, interim);
+      renderSource(committedGreek, applyVocabulary(interim));
 
       if (interim || newFinal) {
         micBar.style.width = '70%';
@@ -434,6 +483,70 @@
         stopBtn.disabled = true;
       }
     };
+  }
+
+  // ── Vocabulary matching ────────────────────────────────────
+  // Transliterate Greek phonetics to Latin so we can fuzzy-match English terms
+  function greekToLatin(word) {
+    return word.toLowerCase()
+      .replace(/αι|αί/g, 'e').replace(/ει|εί|οι|οί/g, 'i')
+      .replace(/αυ/g, 'av').replace(/ευ/g, 'ev')
+      .replace(/μπ/g, 'b').replace(/ντ/g, 'd').replace(/γκ/g, 'g')
+      .replace(/τσ/g, 'ts').replace(/τζ/g, 'dz')
+      .replace(/[αά]/g, 'a').replace(/β/g, 'v').replace(/γ/g, 'g')
+      .replace(/δ/g, 'd').replace(/[εέ]/g, 'e').replace(/ζ/g, 'z')
+      .replace(/[ηή]/g, 'i').replace(/θ/g, 'th').replace(/[ιίϊΐ]/g, 'i')
+      .replace(/κ/g, 'k').replace(/λ/g, 'l').replace(/μ/g, 'm')
+      .replace(/ν/g, 'n').replace(/ξ/g, 'ks').replace(/[οό]/g, 'o')
+      .replace(/π/g, 'p').replace(/ρ/g, 'r').replace(/[σς]/g, 's')
+      .replace(/τ/g, 't').replace(/[υύϋΰ]/g, 'i').replace(/φ/g, 'f')
+      .replace(/χ/g, 'h').replace(/ψ/g, 'ps').replace(/[ωώ]/g, 'o');
+  }
+
+  function levenshtein(a, b) {
+    const m = a.length, n = b.length;
+    const dp = Array.from({length: m + 1}, (_, i) => Array.from({length: n + 1}, (_, j) => i === 0 ? j : j === 0 ? i : 0));
+    for (let i = 1; i <= m; i++)
+      for (let j = 1; j <= n; j++)
+        dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
+    return dp[m][n];
+  }
+
+  function applyVocabulary(text) {
+    const raw = document.getElementById('vocabInput').value;
+    if (!raw.trim()) return text;
+
+    const terms = raw.split(',').map(t => t.trim()).filter(Boolean);
+    if (terms.length === 0) return text;
+
+    // Split text into word tokens (preserve spaces and punctuation)
+    const tokens = text.split(/(\s+|[.,!?;:])/);
+
+    return tokens.map(token => {
+      // Only try to match non-trivial word tokens
+      if (!token.trim() || token.length < 3 || /^[\s.,!?;:]+$/.test(token)) return token;
+
+      const latinToken = greekToLatin(token);
+      let bestTerm = null, bestScore = 0;
+
+      for (const term of terms) {
+        const latinTerm = term.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (latinTerm.length < 2) continue;
+
+        // Normalize both for comparison
+        const normToken = latinToken.replace(/[^a-z0-9]/g, '');
+        if (normToken.length < 2) continue;
+
+        const maxLen = Math.max(normToken.length, latinTerm.length);
+        const dist = levenshtein(normToken, latinTerm);
+        const score = 1 - dist / maxLen;
+
+        if (score > bestScore) { bestScore = score; bestTerm = term; }
+      }
+
+      // Threshold: 0.78 similarity = confident match
+      return (bestScore >= 0.78 && bestTerm) ? bestTerm : token;
+    }).join('');
   }
 
   // ── Translation ────────────────────────────────────────────
