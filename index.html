@@ -234,16 +234,45 @@
     }
 
     /* ── Vocabulary bar ── */
+    .vocab-section { flex-shrink: 0; }
+
+    .vocab-toggle {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 0.78rem;
+      padding: 4px 2px;
+      transition: color 0.2s;
+      user-select: none;
+    }
+    .vocab-toggle:hover { color: var(--text-secondary); }
+    .vocab-toggle svg { transition: transform 0.25s ease; }
+    .vocab-toggle.open svg { transform: rotate(180deg); }
+
     .vocab-bar {
       display: flex;
       align-items: center;
       gap: 10px;
-      flex-shrink: 0;
       flex-wrap: wrap;
-      padding: 10px 16px;
+      padding: 0 16px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
+      margin-top: 0;
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease, opacity 0.25s ease, padding 0.25s ease, margin-top 0.25s ease;
+    }
+    .vocab-bar.open {
+      max-height: 100px;
+      opacity: 1;
+      padding: 10px 16px;
+      margin-top: 6px;
     }
 
     .vocab-bar label {
@@ -379,10 +408,18 @@
   </div>
 
   <!-- Vocabulary panel -->
-  <div class="vocab-bar">
-    <label>English terms:</label>
-    <input type="text" id="vocabInput" placeholder="Microsoft, Cloud, AWS, AI, Google..." />
-    <span class="vocab-hint">Enter English words/names the speaker will say — separated by commas</span>
+  <div class="vocab-section">
+    <button class="vocab-toggle" id="vocabToggle" onclick="toggleVocab()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+      Custom vocabulary
+    </button>
+    <div class="vocab-bar" id="vocabBar">
+      <label>English terms:</label>
+      <input type="text" id="vocabInput" placeholder="Microsoft, AWS, GPT-4, your company name..." />
+      <span class="vocab-hint">Comma-separated — adds to built-in tech vocabulary</span>
+    </div>
   </div>
 
 </main>
@@ -678,9 +715,17 @@
     toastTimer = setTimeout(() => toast.classList.remove('show'), 4000);
   }
 
+  function toggleVocab() {
+    const bar = document.getElementById('vocabBar');
+    const btn = document.getElementById('vocabToggle');
+    const isOpen = bar.classList.toggle('open');
+    btn.classList.toggle('open', isOpen);
+  }
+
   window.startListening = startListening;
   window.stopListening  = stopListening;
   window.clearAll       = clearAll;
+  window.toggleVocab    = toggleVocab;
 </script>
 </body>
 </html>
